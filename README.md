@@ -1,4 +1,4 @@
-# Find-LinkedServerDependantObjects
+# Find-LinkedServerDependency
 Ever wonder how many objects have code that reference linked servers in a database? Well, I did. And here's what I wrote to help find them.
 
 ## Hey, look, I know linked servers can suck
