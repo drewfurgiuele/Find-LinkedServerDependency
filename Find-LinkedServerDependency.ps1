@@ -1,21 +1,43 @@
 <#
 .SYNOPSIS
+This function will scan various objects for any use of four part identifiers that indicate they use a linked server reference
+
 .DESCRIPTION
-.PARAMETER Files
+Did you ever want to know how many objects in your database reference a linked server? It can be hard! You could do a find and replace in SSMS with tools like (the excellent) SQL Search from RedGate, or maybe
+using pattern matching with sp_helptext or other metadata views. But what your linked server shares, say, a schema name? You'd get lots of false positives. Instead, why not be thorough? This function will parse each individual
+object's DDL code and look for a consecutive quoted or non-quoted identifier string and flag the object as having at least one reference. Note that, currently, if the same linked server is referenced twice in the same object, this function will
+return two results for the same object.
+
+Returns an object that contains the object containing the linked server reference, the linked server name, database, schema, and object being referenced, and the definition of the referencing object (as a hidden property)
+
+.PARAMETER ServerInstance
+The SQL Server instance's host name to run this function against. Can be either just a host name for a default instance, or a named instance (sqlserver/instancename). This is a required parameter.
+
+.PARAMETER DatabaseName
+The database that contains the objects you want to parse out. This is a required parameter.
+
 .PARAMETER PathToScriptDomLibrary
-.PARAMETER UseQuotedIdentifier
+The explicit path to the Microsoft.SqlServer.TransactSql.ScriptDom.dll. If you run this function on a machine that has SQL Server installed, this parameter should not be needed. However, if this library cannot be found in any default location
+(or you're running on a machine/VM that doesn't have SQL Server installed) you can manually supply a path to this library (see NOTES below)./
+
 .NOTES
+This function requires:
+    1. The SQLSERVER PowerShell Module ()
+    2. An accessable Microsoft.SqlServer.TransactSql.ScriptDom.dll file (Most commonly available via SQL Server Install, but can be copied to another location and referenced via the -PathToScriptDomLibrary parameter)
+
 .LINK
+
 .EXAMPLE
-.EXAMPLE
+$references = ./Find-LinkedServerDependency.ps1 -ServerName sqlserver -DatabaseName databaseName
+
 #>
 
 [cmdletbinding()]
 param(
-    [Parameter(Mandatory=$true)] [string] $ServerInstance,
-    [Parameter(Mandatory=$true)] [string] $DatabaseName,
-    [Parameter(Mandatory=$false)] [string] $PathToScriptDomLibrary = $null,
-    [Parameter(Mandatory=$false)] [string] $UseQuotedIdentifier = $true
+    [Parameter(Position=0,Mandatory=$true)] [string] $ServerInstance,
+    [Parameter(Position=1,Mandatory=$true)] [string] $DatabaseName,
+    [Parameter(Position=2,Mandatory=$false)] [string] $PathToScriptDomLibrary = $null,
+    [Parameter(Position=3,Mandatory=$false)] [string] $UseQuotedIdentifier = $true
 )
 
 begin {
@@ -64,6 +86,20 @@ begin {
             }
         }
     }
+
+
+    class LinkedServerReference {
+        [string] $ReferencingObjectSchema
+        [string] $ReferencingObjectName
+        [string] $ReferencingObjectType
+        [string] $LinkedServerName
+        [string] $Database
+        [string] $Schema
+        [string] $Object
+        [string] $Definition
+    }
+
+
 }
 
 process {
@@ -77,6 +113,14 @@ process {
         $ServerName = $ServerInstance
         $InstanceName = "DEFAULT"
     }
+
+    if ($GenerateChangeScript) {
+        $InstanceObject = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName" | Where-Object {$_.DisplayName -eq "$Instancename"}
+        $DropScripterObject = New-Object Microsoft.SqlServer.Management.Smo.Scripter($InstanceObject)
+        $DropScripterObject.Options.ScriptDrops = $True
+    }
+
+
 
     Write-Verbose "Getting table triggers..."
     $Tables = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Tables"
@@ -104,7 +148,7 @@ process {
         $VerboseMessage = "Parsing $currentObject"
         Write-Verbose $VerboseMessage
 
-        $ObjectDDL = $o.Script() -join "`r`nGO`r`n"
+        $ObjectDDL = $o.TextBody
 
         $memoryStream = New-Object System.IO.MemoryStream
         $streamWriter = New-Object System.IO.StreamWriter($memoryStream)
@@ -140,7 +184,14 @@ process {
                         Database = $Tokens[$Iteration - 4].Text.Replace("[","").Replace("]","")
                         Schema = $Tokens[$Iteration - 2].Text.Replace("[","").Replace("]","")
                         Object = $Tokens[$Iteration].Text.Replace("[","").Replace("]","")
+                        Definition = $o.TextBody
                     }
+
+                    $defaultProperties = 'ReferencingObjectSchema','ReferencingObjectName','ReferencingObjectType','LinkedServerName','Database','Schema','Object'
+                    $defaultDisplayPropertySet = New-Object System.Management.Automation.PSPropertySet('DefaultDisplayPropertySet', [string[]] $defaultProperties)
+                    $PSStandardMembers = [System.Management.Automation.PSMemberInfo[]]@($defaultDisplayPropertySet)
+                    $LinkedServerReference | Add-Member MemberSet PSStandardMembers $PSStandardMembers | Out-Null
+
                     $LinkedServerReference
                 }
             }

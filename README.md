@@ -23,7 +23,5 @@ To use this function, you'll need:
 2. Access to the Microsoft.SqlServer.TransactSql.ScriptDom assembly. If you run this on a host with a recent(ish) version of SQL Server installed, this won't be an issue. Otherwise, you need to supply a path to this library
 
 ## Known issues / todo
-1. Update the help/documentation at the top of the script
-2. It's not super fast. Since it's single-threaded and parsing T-SQL
-3. Linked servers might lurk elsewhere? I don't know.
-4. Theading? For speed?
+1. Linked servers might lurk elsewhere? I don't know.
+2. Threading?
