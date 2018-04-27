@@ -86,20 +86,6 @@ begin {
             }
         }
     }
-
-
-    class LinkedServerReference {
-        [string] $ReferencingObjectSchema
-        [string] $ReferencingObjectName
-        [string] $ReferencingObjectType
-        [string] $LinkedServerName
-        [string] $Database
-        [string] $Schema
-        [string] $Object
-        [string] $Definition
-    }
-
-
 }
 
 process {
@@ -121,20 +107,31 @@ process {
     }
 
 
-
-    Write-Verbose "Getting table triggers..."
-    $Tables = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Tables"
-    $TableTriggers = $Tables.Triggers
-    Write-Verbose "Getting database triggers..."
-    $DBTriggers = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Triggers"
-    Write-Verbose "Getting synonyms..."
-    $Synonyms = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Synonyms"
-    Write-Verbose "Getting views..."
-    $Views = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Views"
-    Write-Verbose "Getting table functions..."
-    $Functions = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\UserDefinedFunctions"
-    Write-Verbose "Getting stored procedures..."
-    $Procs = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\StoredProcedures"
+    if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Tables") {
+        Write-Verbose "Getting table triggers..."
+        $Tables = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Tables"
+        $TableTriggers = $Tables.Triggers
+    }
+    if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Triggers") {
+        Write-Verbose "Getting database triggers..."
+        $DBTriggers = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Triggers"
+    }
+    if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Synonyms") {
+        Write-Verbose "Getting synonyms..."
+        $Synonyms = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Synonyms"
+    }
+    if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Views") {
+        Write-Verbose "Getting views..."
+        $Views = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Views"
+    }
+    if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\UserDefinedFunctions") {
+        Write-Verbose "Getting table functions..."
+        $Functions = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\UserDefinedFunctions"
+    }
+    if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\StoredProcedures") {
+        Write-Verbose "Getting stored procedures..."
+        $Procs = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\StoredProcedures"
+    }
 
     $ObjectScripts += $Views
     $ObjectScripts += $TableTriggers
