@@ -26,6 +26,7 @@ This function requires:
     2. An accessable Microsoft.SqlServer.TransactSql.ScriptDom.dll file (Most commonly available via SQL Server Install, but can be copied to another location and referenced via the -PathToScriptDomLibrary parameter)
 
 .LINK
+http://port1433.com/2018/04/27/finding-linked-server-references-using-powershell/
 
 .EXAMPLE
 $references = ./Find-LinkedServerDependency.ps1 -ServerName sqlserver -DatabaseName databaseName
