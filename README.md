@@ -18,7 +18,7 @@ You can point this function to a given instance and database name it'll scan:
 This will parse each object's DDL and look for four-part identifiers and mark those objects are referencing a linked server. The function will return an array of objects that details the referecing object as well as the linked server, database, schema, and object name being called via the linked server.
 
 ## Demo
-https://i2.wp.com/port1433.com/wp-content/uploads/2018/04/linkedserverpsdemo.gif
+!https://i2.wp.com/port1433.com/wp-content/uploads/2018/04/linkedserverpsdemo.gif
 
 ## Requirements
 To use this function, you'll need:
