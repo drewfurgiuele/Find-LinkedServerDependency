@@ -87,6 +87,49 @@ begin {
             }
         }
     }
+
+
+    Class LinkedServerReference
+    {
+        [string] $ReferencingObjectSchema
+        [string] $ReferencingObjectName
+        [string] $ReferencingObjectType
+        [string] $LinkedServerName
+        [string] $Database
+        [string] $Schema
+        [string] $Object
+        hidden [string] $Definition
+        hidden [boolean] $IsQuotedIdentifier = $false
+        hidden [string[]] $TextToReplace
+        #hidden [string] $Tokens = $null
+
+        #LinkedServerReference ()
+        #{
+        #    $defaultProperties = 'ReferencingObjectSchema','ReferencingObjectName','ReferencingObjectType','LinkedServerName','Database','Schema','Object'
+        #    $defaultDisplayPropertySet = New-Object System.Management.Automation.PSPropertySet('DefaultDisplayPropertySet', [string[]] $defaultProperties)
+        #    $PSStandardMembers = [System.Management.Automation.PSMemberInfo[]]@($defaultDisplayPropertySet)
+        #    $this | Add-Member MemberSet PSStandardMembers $PSStandardMembers | Out-Null
+        #}
+
+        [String] ReplaceLinkedServer([String] $FromServer, [String] $ToServer)
+        {
+            $ReplaceWith = $null
+            $ReplacedCode = "ALTER " + $this.ReferencingObjectType + " [" + $this.ReferencingObjectSchema + "].[" + $this.ReferencingObjectName + "] AS `r`n" + $this.Definition
+            if ($this.LinkedServerName -eq $FromServer) {
+                ForEach ($t in $this.TextToReplace) {
+                    #Need an object to support if each reference is a quoted identifier...
+                    if ($this.IsQuotedIdentifier) {
+                        $ReplaceWith = $t.replace("[" + $this.LinkedServerName + "].","[" + $ToServer + "].")
+                    } else {
+                        $ReplaceWith = $t.replace($this.LinkedServerName + ".",$ToServer + ".")
+                    }
+                    $ReplacedCode = $ReplacedCode.Replace($t, $ReplaceWith)
+                }
+            } 
+            return $ReplacedCode
+        }
+    }
+
 }
 
 process {
@@ -164,6 +207,8 @@ process {
         $IdentifierCount = 0
         $Iteration = 0
         
+        $ReferencesForThisObject = @()
+
         ForEach ($t in $Tokens) {
 
             if ($t.TokenType -ne "dot") {
@@ -173,28 +218,37 @@ process {
                     $IdentifierCount = 0
                 }
                 if ($IdentifierCount -eq 4) {
-                    $IdentifierCount = 0
-                    $LinkedServerReference = [PSCustomObject] @{
-                        ReferencingObjectSchema = $o.Schema
-                        ReferencingObjectName = $o.Name
-                        ReferencingObjectType = $o.GetType().Name
-                        LinkedServerName = $Tokens[$Iteration - 6].Text.Replace("[","").Replace("]","")
-                        Database = $Tokens[$Iteration - 4].Text.Replace("[","").Replace("]","")
-                        Schema = $Tokens[$Iteration - 2].Text.Replace("[","").Replace("]","")
-                        Object = $Tokens[$Iteration].Text.Replace("[","").Replace("]","")
-                        Definition = $o.TextBody
+                    $IdentifierCount = 0                    
+                    if ($ReferencesForThisObject.LinkedServerName -contains $Tokens[$Iteration - 6].Text.Replace("[","").Replace("]","")) {
+                        ($ReferencesForThisObject | Where-Object {$_.LinkedServerName -eq $Tokens[$Iteration - 6].Text.Replace("[","").Replace("]","")}).TextToReplace += $Tokens[$Iteration - 6].Text + "." + $Tokens[$Iteration - 4].Text + "." + $Tokens[$Iteration - 2].Text + "." + $Tokens[$Iteration].Text
+                        Write-Verbose "Already a linked server name for this reference, skipping..."
+                    } else {
+
+                        $Reference = New-Object LinkedServerReference
+
+                        $Reference.ReferencingObjectSchema = $o.Schema
+                        $Reference.ReferencingObjectName = $o.Name
+                        $Reference.ReferencingObjectType = $o.GetType().Name
+                        $Reference.LinkedServerName = $Tokens[$Iteration - 6].Text.Replace("[","").Replace("]","")
+                        $Reference.Database = $Tokens[$Iteration - 4].Text.Replace("[","").Replace("]","")
+                        $Reference.Schema = $Tokens[$Iteration - 2].Text.Replace("[","").Replace("]","")
+                        $Reference.Object = $Tokens[$Iteration].Text.Replace("[","").Replace("]","")
+                        $Reference.Definition = $o.TextBody
+                        $Reference.TextToReplace += $Tokens[$Iteration - 6].Text + "." + $Tokens[$Iteration - 4].Text + "." + $Tokens[$Iteration - 2].Text + "." + $Tokens[$Iteration].Text
+
+                        if ($Tokens[$Iteration - 6].TokenType -eq "QuotedIdentifier") {
+                            $Reference.IsQuotedIdentifier = $true
+                        }
+                        $ReferencesForThisObject += $Reference
+
                     }
-
-                    $defaultProperties = 'ReferencingObjectSchema','ReferencingObjectName','ReferencingObjectType','LinkedServerName','Database','Schema','Object'
-                    $defaultDisplayPropertySet = New-Object System.Management.Automation.PSPropertySet('DefaultDisplayPropertySet', [string[]] $defaultProperties)
-                    $PSStandardMembers = [System.Management.Automation.PSMemberInfo[]]@($defaultDisplayPropertySet)
-                    $LinkedServerReference | Add-Member MemberSet PSStandardMembers $PSStandardMembers | Out-Null
-
-                    $LinkedServerReference
                 }
+
             }
             $Iteration++
         }
+        $ReferencesForThisObject
+
         $streamReader.Close()
     }
 }
