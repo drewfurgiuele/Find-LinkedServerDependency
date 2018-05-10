@@ -127,6 +127,24 @@ begin {
             return $ReplacedCode
         }
 
+        [String] RemoveLinkedServer([String] $FromServer)
+        {
+            $ReplaceWith = $null
+            $ReplacedCode = "ALTER " + $this.Dictionary[$this.ReferencingObjectType] + " [" + $this.ReferencingObjectSchema + "].[" + $this.ReferencingObjectName + "] AS `r`n" + $this.Definition
+            if ($this.LinkedServerName -eq $FromServer) {
+                ForEach ($e in $this.RefExpression) {
+                    if ($e.IsQuotedIdentifier) {
+                        $ReplaceWith = $e.TextToReplace.replace("[" + $this.LinkedServerName + "].", "")
+                    } else {
+                        $ReplaceWith = $e.TextToReplace.replace($this.LinkedServerName + ".", "")
+                    }
+                    $ReplacedCode = $ReplacedCode.Replace($e.TextToReplace, $ReplaceWith)
+                }
+            } 
+            return $ReplacedCode
+        }
+
+
         [int] GetTotalReferences()
         {
             return $this.RefExpression.Count

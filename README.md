@@ -9,7 +9,7 @@ And that might work, but you still might miss things. And what about if you have
 
 ## That's right: you can parse each object that might contain a linked server reference
 You can point this function to a given instance and database name it'll scan:
-* Table triggers
+* Table (and database) triggers
 * Database synonyms
 * Views
 * Functions
