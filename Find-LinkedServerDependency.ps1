@@ -88,6 +88,13 @@ begin {
         }
     }
 
+    $DictionaryObject = New-Object 'System.Collections.Generic.Dictionary[string, string]'
+
+    Class ReferenceExpression
+    {
+        [string] $TextToReplace
+        [bool] $IsQuotedIdentifier = $false
+    }
 
     Class LinkedServerReference
     {
@@ -98,38 +105,33 @@ begin {
         [string] $Database
         [string] $Schema
         [string] $Object
+        [int] $TotalReferences = 0
         hidden [string] $Definition
-        hidden [boolean] $IsQuotedIdentifier = $false
-        hidden [string[]] $TextToReplace
-        #hidden [string] $Tokens = $null
-
-        #LinkedServerReference ()
-        #{
-        #    $defaultProperties = 'ReferencingObjectSchema','ReferencingObjectName','ReferencingObjectType','LinkedServerName','Database','Schema','Object'
-        #    $defaultDisplayPropertySet = New-Object System.Management.Automation.PSPropertySet('DefaultDisplayPropertySet', [string[]] $defaultProperties)
-        #    $PSStandardMembers = [System.Management.Automation.PSMemberInfo[]]@($defaultDisplayPropertySet)
-        #    $this | Add-Member MemberSet PSStandardMembers $PSStandardMembers | Out-Null
-        #}
-
+        hidden [ReferenceExpression[]] $RefExpression
+        hidden [System.Collections.Generic.Dictionary[string,string]] $Dictionary
+        
         [String] ReplaceLinkedServer([String] $FromServer, [String] $ToServer)
         {
             $ReplaceWith = $null
-            $ReplacedCode = "ALTER " + $this.ReferencingObjectType + " [" + $this.ReferencingObjectSchema + "].[" + $this.ReferencingObjectName + "] AS `r`n" + $this.Definition
+            $ReplacedCode = "ALTER " + $this.Dictionary[$this.ReferencingObjectType] + " [" + $this.ReferencingObjectSchema + "].[" + $this.ReferencingObjectName + "] AS `r`n" + $this.Definition
             if ($this.LinkedServerName -eq $FromServer) {
-                ForEach ($t in $this.TextToReplace) {
-                    #Need an object to support if each reference is a quoted identifier...
-                    if ($this.IsQuotedIdentifier) {
-                        $ReplaceWith = $t.replace("[" + $this.LinkedServerName + "].","[" + $ToServer + "].")
+                ForEach ($e in $this.RefExpression) {
+                    if ($e.IsQuotedIdentifier) {
+                        $ReplaceWith = $e.TextToReplace.replace("[" + $this.LinkedServerName + "].", "[" + $ToServer + "].")
                     } else {
-                        $ReplaceWith = $t.replace($this.LinkedServerName + ".",$ToServer + ".")
+                        $ReplaceWith = $e.TextToReplace.replace($this.LinkedServerName + ".", $ToServer + ".")
                     }
-                    $ReplacedCode = $ReplacedCode.Replace($t, $ReplaceWith)
+                    $ReplacedCode = $ReplacedCode.Replace($e.TextToReplace, $ReplaceWith)
                 }
             } 
             return $ReplacedCode
         }
-    }
 
+        [int] GetTotalReferences()
+        {
+            return $this.RefExpression.Count
+        }
+    }
 }
 
 process {
@@ -150,11 +152,11 @@ process {
         $DropScripterObject.Options.ScriptDrops = $True
     }
 
-
     if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Tables") {
         Write-Verbose "Getting table triggers..."
         $Tables = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Tables"
         $TableTriggers = $Tables.Triggers
+        $DictionaryObject.Add('Trigger','TRIGGER')
     }
     if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Triggers") {
         Write-Verbose "Getting database triggers..."
@@ -163,18 +165,22 @@ process {
     if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Synonyms") {
         Write-Verbose "Getting synonyms..."
         $Synonyms = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Synonyms"
+        $DictionaryObject.Add('Synonym','SYNONYM')
     }
     if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Views") {
         Write-Verbose "Getting views..."
         $Views = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\Views"
+        $DictionaryObject.Add('View','VIEW')
     }
     if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\UserDefinedFunctions") {
         Write-Verbose "Getting table functions..."
         $Functions = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\UserDefinedFunctions"
+        $DictionaryObject.Add('UserDefinedFunction','FUNCTION')
     }
     if (Test-Path -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\StoredProcedures") {
         Write-Verbose "Getting stored procedures..."
         $Procs = Get-ChildItem -Path "SQLSERVER:\SQL\$ServerName\$InstanceName\Databases\$DatabaseName\StoredProcedures"
+        $DictionaryObject.Add('StoredProcedure','PROCEDURE')
     }
 
     $ObjectScripts += $Views
@@ -220,10 +226,17 @@ process {
                 if ($IdentifierCount -eq 4) {
                     $IdentifierCount = 0                    
                     if ($ReferencesForThisObject.LinkedServerName -contains $Tokens[$Iteration - 6].Text.Replace("[","").Replace("]","")) {
-                        ($ReferencesForThisObject | Where-Object {$_.LinkedServerName -eq $Tokens[$Iteration - 6].Text.Replace("[","").Replace("]","")}).TextToReplace += $Tokens[$Iteration - 6].Text + "." + $Tokens[$Iteration - 4].Text + "." + $Tokens[$Iteration - 2].Text + "." + $Tokens[$Iteration].Text
                         Write-Verbose "Already a linked server name for this reference, skipping..."
-                    } else {
+                        $ExistingReference = $ReferencesForThisObject | Where-Object {$_.LinkedServerName -eq $Tokens[$Iteration - 6].Text.Replace("[","").Replace("]","")}
 
+                        $Expression = New-Object ReferenceExpression 
+                        $Expression.TextToReplace = $Tokens[$Iteration - 6].Text + "." + $Tokens[$Iteration - 4].Text + "." + $Tokens[$Iteration - 2].Text + "." + $Tokens[$Iteration].Text
+                        if ($Tokens[$Iteration - 6].TokenType -eq "QuotedIdentifier") {
+                            $Expression.IsQuotedIdentifier = $true
+                        }
+                        $ExistingReference.RefExpression += $Expression
+                        $ExistingReference.TotalReferences = $ExistingReference.GetTotalReferences()
+                    } else {
                         $Reference = New-Object LinkedServerReference
 
                         $Reference.ReferencingObjectSchema = $o.Schema
@@ -234,13 +247,17 @@ process {
                         $Reference.Schema = $Tokens[$Iteration - 2].Text.Replace("[","").Replace("]","")
                         $Reference.Object = $Tokens[$Iteration].Text.Replace("[","").Replace("]","")
                         $Reference.Definition = $o.TextBody
-                        $Reference.TextToReplace += $Tokens[$Iteration - 6].Text + "." + $Tokens[$Iteration - 4].Text + "." + $Tokens[$Iteration - 2].Text + "." + $Tokens[$Iteration].Text
+                        $Reference.Dictionary = $DictionaryObject
 
+                        $Expression = New-Object ReferenceExpression 
+                        $Expression.TextToReplace = $Tokens[$Iteration - 6].Text + "." + $Tokens[$Iteration - 4].Text + "." + $Tokens[$Iteration - 2].Text + "." + $Tokens[$Iteration].Text
                         if ($Tokens[$Iteration - 6].TokenType -eq "QuotedIdentifier") {
-                            $Reference.IsQuotedIdentifier = $true
+                            $Expression.IsQuotedIdentifier = $true
                         }
-                        $ReferencesForThisObject += $Reference
+                        $Reference.RefExpression = $Expression
+                        $Reference.TotalReferences = $Reference.GetTotalReferences()
 
+                        $ReferencesForThisObject += $Reference
                     }
                 }
 
