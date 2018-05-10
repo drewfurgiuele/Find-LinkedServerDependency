@@ -22,8 +22,9 @@ This will parse each object's DDL and look for four-part identifiers and mark th
 
 ## Requirements
 To use this function, you'll need:
-1. The sqlserver PowerShell module (https://www.powershellgallery.com/packages/SqlServer)
-2. Access to the Microsoft.SqlServer.TransactSql.ScriptDom assembly. If you run this on a host with a recent(ish) version of SQL Server installed, this won't be an issue. Otherwise, you need to supply a path to this library
+1. PowerShell version 4+ (Classes are great and please upgrade!)
+2. The sqlserver PowerShell module (https://www.powershellgallery.com/packages/SqlServer)
+3. Access to the Microsoft.SqlServer.TransactSql.ScriptDom assembly. If you run this on a host with a recent(ish) version of SQL Server installed, this won't be an issue. Otherwise, you need to supply a path to this library
 
 ## Known issues / todo
 1. Linked servers might lurk elsewhere? I don't know.
