@@ -113,7 +113,10 @@ begin {
         [String] ReplaceLinkedServer([String] $FromServer, [String] $ToServer)
         {
             $ReplaceWith = $null
-            $ReplacedCode = "ALTER " + $this.Dictionary[$this.ReferencingObjectType] + " [" + $this.ReferencingObjectSchema + "].[" + $this.ReferencingObjectName + "] AS `r`n" + $this.Definition
+            $ReplacedCode = $this.Definition
+            $Pattern = New-Object System.Text.RegularExpressions.Regex("CREATE", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            $ReplacedCode = $pattern.replace($ReplacedCode, "ALTER", 1)                  
+
             if ($this.LinkedServerName -eq $FromServer) {
                 ForEach ($e in $this.RefExpression) {
                     if ($e.IsQuotedIdentifier) {
@@ -122,6 +125,10 @@ begin {
                         $ReplaceWith = $e.TextToReplace.replace($this.LinkedServerName + ".", $ToServer + ".")
                     }
                     $ReplacedCode = $ReplacedCode.Replace($e.TextToReplace, $ReplaceWith)
+                    $ReplacedCode = $ReplacedCode.Replace("SET ANSI_NULLS ON","")
+                    $ReplacedCode = $ReplacedCode.Replace("SET QUOTED_IDENTIFIER ON","")
+                    $ReplacedCode = $ReplacedCode + "`r`nGO`r`n"
+                    $ReplacedCode = $ReplacedCode.TrimStart()
                 }
             } 
             return $ReplacedCode
@@ -130,17 +137,25 @@ begin {
         [String] RemoveLinkedServer([String] $FromServer)
         {
             $ReplaceWith = $null
-            $ReplacedCode = "ALTER " + $this.Dictionary[$this.ReferencingObjectType] + " [" + $this.ReferencingObjectSchema + "].[" + $this.ReferencingObjectName + "] AS `r`n" + $this.Definition
+            $ReplacedCode = $this.Definition
+            $Pattern = New-Object System.Text.RegularExpressions.Regex("CREATE", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            $ReplacedCode = $pattern.replace($ReplacedCode, "ALTER", 1)        
+
             if ($this.LinkedServerName -eq $FromServer) {
                 ForEach ($e in $this.RefExpression) {
                     if ($e.IsQuotedIdentifier) {
-                        $ReplaceWith = $e.TextToReplace.replace("[" + $this.LinkedServerName + "].", "")
+                        $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex(("[" + $this.LinkedServerName + "]."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
                     } else {
-                        $ReplaceWith = $e.TextToReplace.replace($this.LinkedServerName + ".", "")
+                        $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex(($this.LinkedServerName + "."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
                     }
-                    $ReplacedCode = $ReplacedCode.Replace($e.TextToReplace, $ReplaceWith)
-                }
+                    $ReplacedCode = $PatternToLookFor.Replace($ReplacedCode,"")
+               }
             } 
+            $ReplacedCode = $ReplacedCode.Replace("SET ANSI_NULLS ON","")
+            $ReplacedCode = $ReplacedCode.Replace("SET QUOTED_IDENTIFIER ON","")
+            $ReplacedCode = $ReplacedCode + "`r`nGO`r`n"
+            $ReplacedCode = $ReplacedCode.TrimStart()
+
             return $ReplacedCode
         }
 
@@ -264,7 +279,7 @@ process {
                         $Reference.Database = $Tokens[$Iteration - 4].Text.Replace("[","").Replace("]","")
                         $Reference.Schema = $Tokens[$Iteration - 2].Text.Replace("[","").Replace("]","")
                         $Reference.Object = $Tokens[$Iteration].Text.Replace("[","").Replace("]","")
-                        $Reference.Definition = $o.TextBody
+                        $Reference.Definition = ($o.Script() -join "`r`n")
                         $Reference.Dictionary = $DictionaryObject
 
                         $Expression = New-Object ReferenceExpression 
