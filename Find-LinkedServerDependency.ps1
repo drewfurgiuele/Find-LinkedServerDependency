@@ -136,7 +136,6 @@ begin {
 
         [String] RemoveLinkedServer([String] $FromServer)
         {
-            $ReplaceWith = $null
             $ReplacedCode = $this.Definition
             $Pattern = New-Object System.Text.RegularExpressions.Regex("CREATE", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
             $ReplacedCode = $pattern.replace($ReplacedCode, "ALTER", 1)        
@@ -228,7 +227,11 @@ process {
         $VerboseMessage = "Parsing $currentObject"
         Write-Verbose $VerboseMessage
 
-        $ObjectDDL = $o.TextBody
+        if ($o.GetType().Name -eq "Synonym") {
+            $ObjectDDL = ($o.Script() -join "`r`n")
+        } else {
+            $ObjectDDL = $o.TextBody
+        }
 
         $memoryStream = New-Object System.IO.MemoryStream
         $streamWriter = New-Object System.IO.StreamWriter($memoryStream)
