@@ -143,13 +143,14 @@ begin {
             if ($this.LinkedServerName -eq $FromServer) {
                 ForEach ($e in $this.RefExpression) {
                     if ($e.IsQuotedIdentifier) {
-                        $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex(("[" + $this.LinkedServerName + "]."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                        $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex(("\[" + $this.LinkedServerName + "\]."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
                     } else {
                         $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex(($this.LinkedServerName + "."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
                     }
                     $ReplacedCode = $PatternToLookFor.Replace($ReplacedCode,"")
                }
             } 
+
             $ReplacedCode = $ReplacedCode.Replace("SET ANSI_NULLS ON","")
             $ReplacedCode = $ReplacedCode.Replace("SET QUOTED_IDENTIFIER ON","")
             $ReplacedCode = $ReplacedCode + "`r`nGO`r`n"
