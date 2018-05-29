@@ -120,7 +120,7 @@ begin {
             if ($this.LinkedServerName -eq $FromServer) {
                 ForEach ($e in $this.RefExpression) {
                     if ($e.IsQuotedIdentifier) {
-                        $ReplaceWith = $e.TextToReplace.replace("[" + $this.LinkedServerName + "].", "[" + $ToServer + "].")
+                        $ReplaceWith = $e.TextToReplace.replace("\[" + $this.LinkedServerName + "\].", "[" + $ToServer + "].")
                     } else {
                         $ReplaceWith = $e.TextToReplace.replace($this.LinkedServerName + ".", $ToServer + ".")
                     }
