@@ -112,7 +112,6 @@ begin {
         
         [String] ReplaceLinkedServer([String] $FromServer, [String] $ToServer)
         {
-            $ReplaceWith = $null
             $ReplacedCode = $this.Definition
             $Pattern = New-Object System.Text.RegularExpressions.Regex("CREATE", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
             $ReplacedCode = $pattern.replace($ReplacedCode, "ALTER", 1)                  
@@ -120,17 +119,21 @@ begin {
             if ($this.LinkedServerName -eq $FromServer) {
                 ForEach ($e in $this.RefExpression) {
                     if ($e.IsQuotedIdentifier) {
-                        $ReplaceWith = $e.TextToReplace.replace("\[" + $this.LinkedServerName + "\].", "[" + $ToServer + "].")
+                        $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex(("\[" + $this.LinkedServerName + "\]."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                        $ReplacedServerName = "[" + $ToServer + "]."
                     } else {
-                        $ReplaceWith = $e.TextToReplace.replace($this.LinkedServerName + ".", $ToServer + ".")
+                        $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex((" " + $this.LinkedServerName + "."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                        $ReplacedServerName =  $ToServer + "."
                     }
-                    $ReplacedCode = $ReplacedCode.Replace($e.TextToReplace, $ReplaceWith)
-                    $ReplacedCode = $ReplacedCode.Replace("SET ANSI_NULLS ON","")
-                    $ReplacedCode = $ReplacedCode.Replace("SET QUOTED_IDENTIFIER ON","")
-                    $ReplacedCode = $ReplacedCode + "`r`nGO`r`n"
-                    $ReplacedCode = $ReplacedCode.TrimStart()
-                }
+                    $RefExpressionFixed = $PatternToLookFor.Replace($e.TextToReplace,$ReplacedServerName)
+                    $ReplacedCode = $ReplacedCode.Replace($e.TextToReplace,$RefExpressionFixed)
+               }
             } 
+            $ReplacedCode = $ReplacedCode.Replace("SET ANSI_NULLS ON","")
+            $ReplacedCode = $ReplacedCode.Replace("SET QUOTED_IDENTIFIER ON","")
+            $ReplacedCode = $ReplacedCode + "`r`nGO`r`n"
+            $ReplacedCode = $ReplacedCode.TrimStart()
+            
             return $ReplacedCode
         }
 
@@ -139,18 +142,17 @@ begin {
             $ReplacedCode = $this.Definition
             $Pattern = New-Object System.Text.RegularExpressions.Regex("CREATE", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
             $ReplacedCode = $pattern.replace($ReplacedCode, "ALTER", 1)        
-
             if ($this.LinkedServerName -eq $FromServer) {
                 ForEach ($e in $this.RefExpression) {
                     if ($e.IsQuotedIdentifier) {
                         $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex(("\[" + $this.LinkedServerName + "\]."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
                     } else {
-                        $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex(($this.LinkedServerName + "."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                        $PatternToLookFor = New-Object System.Text.RegularExpressions.Regex((" " + $this.LinkedServerName + "."), [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
                     }
-                    $ReplacedCode = $PatternToLookFor.Replace($ReplacedCode,"")
+                    $RefExpressionFixed = $PatternToLookFor.Replace($e.TextToReplace,"")
+                    $ReplacedCode = $ReplacedCode.Replace($e.TextToReplace,$RefExpressionFixed)
                }
             } 
-
             $ReplacedCode = $ReplacedCode.Replace("SET ANSI_NULLS ON","")
             $ReplacedCode = $ReplacedCode.Replace("SET QUOTED_IDENTIFIER ON","")
             $ReplacedCode = $ReplacedCode + "`r`nGO`r`n"
